@@ -1,5 +1,6 @@
 
 * Change the Video Selector from a multi-Selector to a single-Selector
-*  Add The video title both on the left and the main panels
-*  Make the time stamp bigger, so that it is prominent
-*  Add a frame on the right side where the youtube can be played
+* Add The video title both on the left and the main panels
+* Make the time stamp bigger, so that it is prominent
+* Add a condition to filter out results if score is less than a threshold
+* Add a frame on the right side where the youtube can be played
