@@ -1,9 +1,9 @@
 import streamlit as st
 import os
 from elasticsearch import Elasticsearch, AsyncElasticsearch
-from utils import get_current_time, count_words_in_conversation
+# from utils import get_current_time, count_words_in_conversation
 # from streamlit_components.es import save_conversation, load_conversation, get_elasticsearch_results, create_RAG_context, get_valid_indices
-from settings import valid_index_list
+# from settings import valid_index_list
 from dotenv import load_dotenv
 import json
 from datetime import datetime
