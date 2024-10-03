@@ -2,6 +2,38 @@ import os
 import re
 import json
 from youtube_transcript_api import YouTubeTranscriptApi
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+def get_youtube_title(video_id):
+    try:
+        # Replace 'YOUR_API_KEY' with your actual YouTube Data API key
+        youtube = build('youtube', 'v3', developerKey=os.getenv('YOUTUBE_API_KEY'))
+
+        # Call the videos().list method to retrieve video details
+        request = youtube.videos().list(
+            part="snippet",
+            id=video_id
+        )
+        response = request.execute()
+
+        # Extract the title from the response
+        if 'items' in response and len(response['items']) > 0:
+            return response['items'][0]['snippet']['title']
+        else:
+            return "Title not found"
+
+    except HttpError as e:
+        return f"An HTTP error occurred: {e.resp.status} {e.content}"
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
+
+# Example usage:
+# title = get_youtube_title("dQw4w9WgXcQ")
+# st.write(f"Video Title: {title}")
+
+
+
 
 def get_video_id(url):
     # Regular expression pattern to match various YouTube URL formats

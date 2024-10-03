@@ -4,4 +4,6 @@ streamlit==1.37.
 youtube-transcript-api==0.4.1
 python-dotenv==0.19.1
 aiohttp==3.7.4
+eland[pytorch]==8.15.0
+google-api-python-client
 # openai==1.35.13
