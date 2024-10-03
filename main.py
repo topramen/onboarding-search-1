@@ -119,21 +119,19 @@ selected_indices=[]
 
 # LEFT SIDEBAR
 with st.sidebar:
-    st.title("Video Selector")
-
-    es_connected=False
-    # TRY TO DISPLAY ERROR MESSAGE IF CONNECTION FAILS
-    try:
-        es_connected = es_client.ping()
-        es_health = es_client.cluster.health()
-    except Exception as e: 
-        es_health='FAILURE'
-    st.markdown(f"**Cluster Endpoint:** {es_endpoint}")
-    if es_connected:
-        st.markdown('<p style="background-color:#CCFFCC; color:#007700; padding:10px; border-radius:5px;"><strong>Connected to Elasticsearch Cluster</strong></p>', unsafe_allow_html=True)
-    else:
-        st.markdown('<p style="background-color:#FFCCCC; color:#CC0000; padding:10px; border-radius:5px;"><strong>Failed to connect to Elasticsearch Cluster</strong></p>', unsafe_allow_html=True)
-
+    # st.title("Cluster Status")
+    # es_connected=False
+    # # TRY TO DISPLAY ERROR MESSAGE IF CONNECTION FAILS
+    # try:
+    #     es_connected = es_client.ping()
+    #     es_health = es_client.cluster.health()
+    # except Exception as e: 
+    #     es_health='FAILURE'
+    # st.markdown(f"**Cluster Endpoint:** {es_endpoint}")
+    # if es_connected:
+    #     st.markdown('<p style="background-color:#CCFFCC; color:#007700; padding:10px; border-radius:5px;"><strong>Connected to Elasticsearch Cluster</strong></p>', unsafe_allow_html=True)
+    # else:
+    #     st.markdown('<p style="background-color:#FFCCCC; color:#CC0000; padding:10px; border-radius:5px;"><strong>Failed to connect to Elasticsearch Cluster</strong></p>', unsafe_allow_html=True)
     # Elastic Search Components
     # save_conversation(es_client, get_current_time)
     # load_conversation(es_client)
@@ -143,7 +141,7 @@ with st.sidebar:
     index_name = os.environ.get("ELASTICSEARCH_INDEX")
     unique_video_ids = get_unique_video_ids(es_client, index_name)
     if unique_video_ids:
-        selected_video_ids = st.multiselect("Select Video IDs", unique_video_ids)
+        selected_video_id = st.selectbox("Select Video ID", unique_video_ids)
     else:
         st.warning("No video IDs found.")
 
