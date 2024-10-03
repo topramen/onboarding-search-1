@@ -47,7 +47,12 @@ def get_unique_video_ids(es_client, index_name):
             }
         )
         video_ids = [bucket['key'] for bucket in response['aggregations']['unique_video_ids']['buckets']]
-        return video_ids
+        
+        # Get YouTube titles for each video ID
+        from youtube_utils import get_youtube_title
+        video_info = [(video_id, get_youtube_title(video_id)) for video_id in video_ids]
+        
+        return video_info
     except Exception as e:
         st.error(f"Error fetching unique video IDs: {str(e)}")
         return []    
@@ -119,60 +124,44 @@ selected_indices=[]
 
 # LEFT SIDEBAR
 with st.sidebar:
-    # st.title("Cluster Status")
-    # es_connected=False
-    # # TRY TO DISPLAY ERROR MESSAGE IF CONNECTION FAILS
-    # try:
-    #     es_connected = es_client.ping()
-    #     es_health = es_client.cluster.health()
-    # except Exception as e: 
-    #     es_health='FAILURE'
-    # st.markdown(f"**Cluster Endpoint:** {es_endpoint}")
-    # if es_connected:
-    #     st.markdown('<p style="background-color:#CCFFCC; color:#007700; padding:10px; border-radius:5px;"><strong>Connected to Elasticsearch Cluster</strong></p>', unsafe_allow_html=True)
-    # else:
-    #     st.markdown('<p style="background-color:#FFCCCC; color:#CC0000; padding:10px; border-radius:5px;"><strong>Failed to connect to Elasticsearch Cluster</strong></p>', unsafe_allow_html=True)
-    # Elastic Search Components
-    # save_conversation(es_client, get_current_time)
-    # load_conversation(es_client)
+    st.title("Youtube Video Insert and Select")
 
-    # List unique video IDs
-    st.title("Unique Videos")
+    # List unique videos
     index_name = os.environ.get("ELASTICSEARCH_INDEX")
-    unique_video_ids = get_unique_video_ids(es_client, index_name)
-    if unique_video_ids:
-        selected_video_id = st.selectbox("Select Video ID", unique_video_ids)
+    unique_videos = get_unique_video_ids(es_client, index_name)
+    if unique_videos:
+        selected_video = st.selectbox("Select Video", unique_videos, format_func=lambda x: f"{x[1]} ({x[0]})")
+        selected_video_id = selected_video[0]
     else:
-        st.warning("No video IDs found.")
+        st.warning("No videos found.")
+        selected_video_id = None
 
 
 
 
 # RIGHT PANEL
-st.title("Video Search")
+st.title("Search in Selected Video")
 
 # Query input field
 query = st.text_input("Enter your search query:")
 
 # Search button
-if st.button("Search") and query and selected_video_ids:
+if st.button("Search") and query and selected_video_id:
     with st.spinner("Searching..."):
-        for video_id in selected_video_ids:
-            st.subheader(f"Results for Video ID: {video_id}")
-            
-            # Use the search_elasticsearch function to query Elasticsearch
-            results = search_elasticsearch(query=query, video_id=video_id)
-            
-            # st.markdown(f"**Total Results:** {results.hits})
-
-            if results:
-                for hit in results['hits']['hits']:
-                    source = hit['_source']
-                    st.write(f"Start Time: {source['start_time']:.2f}")
-                    st.write(f"Text: {source['text']}")
-                    st.write("---")
-            else:
-                st.write("No results found for this video.")
+        st.subheader(f"Results for Video: {selected_video[1]}")
+        
+        # Use the search_elasticsearch function to query Elasticsearch
+        results = search_elasticsearch(query=query, video_id=selected_video_id)
+        
+        if results:
+            st.markdown(f"**Total Results:** {results['hits']['total']['value']}")
+            for hit in results['hits']['hits']:
+                source = hit['_source']
+                st.write(f"Start Time: {source['start_time']:.2f}")
+                st.write(f"Text: {source['text']}")
+                st.write("---")
+        else:
+            st.write("No results found for this video.")
 
 
 
