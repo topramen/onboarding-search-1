@@ -12,6 +12,8 @@ Clone the repo, navigate to main folder, and install dependencies.
 pip install -r requirements.txt
 ```
 
+To run the youtube API, you need to set up gcloud API key, and also set up an Application Default Credentials as suggested in https://cloud.google.com/docs/authentication/provide-credentials-adc#how-to
+
 Create a .env file and fill out the following:
 ```bash
 ELASTIC_ENDPOINT="your Elastic endpoint"
