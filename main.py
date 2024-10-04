@@ -131,6 +131,74 @@ def search_elasticsearch(video_id, query):
         return None
 
 
+def rerank_elasticsearch(video_id, query):
+    es = Elasticsearch(
+        os.getenv('ELASTIC_ENDPOINT'),
+        api_key=os.getenv('ELASTIC_API_KEY')
+    )
+    index_name = os.environ.get("ELASTICSEARCH_INDEX")
+   
+    search_body = {
+        "query": {
+            "bool": {
+                "must": {
+                    "nested": {
+                        "path": "text_semantic.inference.chunks",
+                        "query": {
+                            "sparse_vector": {
+                                "inference_id": "my-elser-endpoint",
+                                "field": "text_semantic.inference.chunks.embeddings",
+                                "query": query
+                            }
+                        },
+                        "inner_hits": {
+                            "size": 2,
+                            "name": "youtube_subtitles.text_semantic",
+                            "_source": [
+                                "text_semantic.inference.chunks.text"
+                            ]
+                        }
+                    }
+                },
+                "filter": {
+                    "term": {
+                        "video_id": video_id
+                    }
+                }
+            }
+        },
+        "_source": ["start_time", "text"],
+        "track_scores": True,
+        "rescore": {
+            "window_size": 50,
+            "query": {
+                "rescore_query": {
+                    "inference": {
+                        "model_id": "cross-encoder__ms-marco-minilm-l-6-v2",
+                        "inference_config": {
+                            "cross_encoder": {
+                                "query": query
+                            }
+                        },
+                        "input_field": "text",
+                        "target_field": "reranked_score"
+                    }
+                },
+                "score_mode": "total",
+                "query_weight": 0.3,
+                "rescore_query_weight": 0.7
+            }
+        }
+    }
+    
+    try:
+        response = es.search(index=index_name, body=search_body)
+        return response
+    except Exception as e:
+        print(f"Error searching and reranking in Elasticsearch: {str(e)}")
+        return None
+
+
 try:
     # Elasticsearch setup
     es_endpoint = os.environ.get("ELASTIC_ENDPOINT")
@@ -203,3 +271,22 @@ if st.button("Search") and query and selected_video_id:
         else:
             st.write("No results found for this video.")
 
+# Re-rank button
+if st.button("Re-rank"):
+    if query and selected_video_id:
+        with st.spinner("Re-ranking..."):
+            reranked_results = rerank_elasticsearch(query=query, video_id=selected_video_id)
+            
+            if reranked_results and reranked_results['hits']['hits']:
+                st.subheader("Re-ranked Results")
+                for hit in reranked_results['hits']['hits']:
+                    source = hit['_source']
+                    score = hit['_score']
+                    st.write(f"Re-ranked Score: {score:.2f}")
+                    st.write(f"Start Time: {source['start_time']:.2f}")
+                    st.write(f"Text: {source['text']}")
+                    st.write("---")
+            else:
+                st.write("No re-ranked results found for this video.")
+    else:
+        st.warning("Please enter a query and select a video before re-ranking.")
