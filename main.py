@@ -5,8 +5,10 @@ from elasticsearch import Elasticsearch, AsyncElasticsearch
 # from streamlit_components.es import save_conversation, load_conversation, get_elasticsearch_results, create_RAG_context, get_valid_indices
 # from settings import valid_index_list
 from dotenv import load_dotenv
+from youtube_utils import get_youtube_title, chunk_youtube_video, get_video_id
 import json
-from datetime import datetime
+
+
 load_dotenv()
 
 def set_page_container_style():
@@ -49,14 +51,37 @@ def get_unique_video_ids(es_client, index_name):
         video_ids = [bucket['key'] for bucket in response['aggregations']['unique_video_ids']['buckets']]
         
         # Get YouTube titles for each video ID
-        from youtube_utils import get_youtube_title
         video_info = [(video_id, get_youtube_title(video_id)) for video_id in video_ids]
         
         return video_info
     except Exception as e:
         st.error(f"Error fetching unique video IDs: {str(e)}")
         return []    
-    
+ 
+def ingest_video_subtitles(video_id):
+    es = Elasticsearch(
+        os.getenv('ELASTIC_ENDPOINT'),
+        api_key=os.getenv('ELASTIC_API_KEY')
+    )
+    index_name = os.environ.get("ELASTICSEARCH_INDEX")
+    file_name = f"{video_id}.ndjson"
+
+    try:
+        with open(file_name, 'r') as file:
+            for line in file:
+                subtitle = json.loads(line)
+                # Add the document to Elasticsearch
+                es.index(index=index_name, body=subtitle)
+        
+        print(f"Successfully ingested subtitles for video {video_id} into Elasticsearch.")
+    except FileNotFoundError:
+        print(f"File {file_name} not found.")
+    except json.JSONDecodeError:
+        print(f"Error decoding JSON in {file_name}.")
+    except Exception as e:
+        print(f"Error ingesting subtitles into Elasticsearch: {str(e)}")
+    finally:
+        es.close()
 
 def search_elasticsearch(video_id, query):
     es = Elasticsearch(
@@ -93,16 +118,16 @@ def search_elasticsearch(video_id, query):
                     }
                 }
             }
-        } 
+        },
+        "_source": ["start_time", "text"],  # Include the fields we want to return
+        "track_scores": True  # This ensures that scores are tracked and returned
     }
     
     try:
-        response =  es.search(index=index_name, body=search_body)
-        # es.close()
+        response = es.search(index=index_name, body=search_body)
         return response
     except Exception as e:
         print(f"Error searching Elasticsearch: {str(e)}")
-        # es.close()
         return None
 
 
@@ -124,19 +149,28 @@ selected_indices=[]
 
 # LEFT SIDEBAR
 with st.sidebar:
-    st.title("Youtube Video Insert and Select")
+    st.title("Ingest Youtube Video ")
+
+    # YouTube URL input and chunk button
+    youtube_url = st.text_input("Enter YouTube URL:")
+    if st.button("Process Video"):
+        if youtube_url:
+            chunk_youtube_video(youtube_url)
+            ingest_video_subtitles(get_video_id(youtube_url))
+        else:
+            st.warning("Please enter a valid YouTube URL.")
 
     # List unique videos
     index_name = os.environ.get("ELASTICSEARCH_INDEX")
     unique_videos = get_unique_video_ids(es_client, index_name)
+    
+    st.title("Select Youtube Video")
     if unique_videos:
-        selected_video = st.selectbox("Select Video", unique_videos, format_func=lambda x: f"{x[1]} ({x[0]})")
+        selected_video = st.selectbox("Pick from", unique_videos, format_func=lambda x: f"{x[1]} ({x[0]})")
         selected_video_id = selected_video[0]
     else:
         st.warning("No videos found.")
         selected_video_id = None
-
-
 
 
 # RIGHT PANEL
@@ -153,15 +187,19 @@ if st.button("Search") and query and selected_video_id:
         # Use the search_elasticsearch function to query Elasticsearch
         results = search_elasticsearch(query=query, video_id=selected_video_id)
         
-        if results:
-            st.markdown(f"**Total Results:** {results['hits']['total']['value']}")
-            for hit in results['hits']['hits']:
-                source = hit['_source']
-                st.write(f"Start Time: {source['start_time']:.2f}")
-                st.write(f"Text: {source['text']}")
-                st.write("---")
+        if results and results['hits']['hits']:
+            filtered_results = [hit for hit in results['hits']['hits'] if hit['_score'] > 3.0]
+            if filtered_results:
+                st.markdown(f"**Total Results (Score > 3.0):** {len(filtered_results)}")
+                for hit in filtered_results:
+                    source = hit['_source']
+                    score = hit['_score']
+                    st.write(f"Score: {score:.2f}")
+                    st.write(f"Start Time: {source['start_time']:.2f}")
+                    st.write(f"Text: {source['text']}")
+                    st.write("---")
+            else:
+                st.write("No results with a score higher than 3.0 found for this video.")
         else:
             st.write("No results found for this video.")
-
-
 

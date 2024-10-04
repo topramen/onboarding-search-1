@@ -106,8 +106,9 @@ def save_chunks_to_files(chunks):
 
 
 
-if __name__ == "__main__":
-    url = "https://www.youtube.com/watch?v=DcWqzZ3I2cY"
+
+
+def chunk_youtube_video(url):
     video_id = get_video_id(url)
     print(f"Video ID: {video_id}")
     
@@ -126,3 +127,8 @@ if __name__ == "__main__":
             print("Failed to download subtitles.")
     else:
         print("Failed to extract video ID from URL.")
+
+
+if __name__ == "__main__":
+    url = "https://www.youtube.com/watch?v=XlvfHOrF26M"
+    chunk_youtube_video(url)

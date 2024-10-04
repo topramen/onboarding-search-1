@@ -1,7 +1,10 @@
 
 * Change the Video Selector from a multi-Selector to a single-Selector - DONE
 * Add The video title both on the left and the main panels - DONE
+* Add a facility to insert into the youtube_subtitle index from UI - DONE
+* Add an iFrame on the right side to show the youtube thumbnail
+* Make the video_id, start_time unique in Elasticsearch so that videos are not inserted in duplicate
 * Make the time stamp bigger, so that it is prominent
-* Add a condition to filter out results if score is less than a threshold
+* Add a condition to filter out results if score is less than a threshold -  DONE
 * Add a frame on the right side where the youtube can be played
 * Try RRF query, instead of just ELSER search
