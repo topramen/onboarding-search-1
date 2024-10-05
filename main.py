@@ -7,9 +7,15 @@ from elasticsearch import Elasticsearch, AsyncElasticsearch
 from dotenv import load_dotenv
 from youtube_utils import get_youtube_title, chunk_youtube_video, get_video_id
 import json
-
+import cohere
 
 load_dotenv()
+
+es = Elasticsearch(
+    os.getenv('ELASTIC_ENDPOINT'),
+    api_key=os.getenv('ELASTIC_API_KEY')
+)
+index_name = os.environ.get("ELASTICSEARCH_INDEX")
 
 def set_page_container_style():
     st.markdown(
@@ -27,11 +33,6 @@ def set_page_container_style():
 
 
 def get_unique_video_ids(es_client, index_name):
-    es = AsyncElasticsearch(
-        os.getenv('ELASTIC_ENDPOINT'),
-        api_key=os.getenv('ELASTIC_API_KEY')
-    )    
-    index_name = os.environ.get("ELASTICSEARCH_INDEX")
 
     try:
         response = es_client.search(
@@ -59,11 +60,7 @@ def get_unique_video_ids(es_client, index_name):
         return []    
  
 def ingest_video_subtitles(video_id):
-    es = Elasticsearch(
-        os.getenv('ELASTIC_ENDPOINT'),
-        api_key=os.getenv('ELASTIC_API_KEY')
-    )
-    index_name = os.environ.get("ELASTICSEARCH_INDEX")
+
     file_name = f"{video_id}.ndjson"
 
     try:
@@ -84,11 +81,6 @@ def ingest_video_subtitles(video_id):
         es.close()
 
 def search_elasticsearch(video_id, query):
-    es = Elasticsearch(
-        os.getenv('ELASTIC_ENDPOINT'),
-        api_key=os.getenv('ELASTIC_API_KEY')
-    )
-    index_name = os.environ.get("ELASTICSEARCH_INDEX")
    
     search_body = {
         "query": {
@@ -130,13 +122,22 @@ def search_elasticsearch(video_id, query):
         print(f"Error searching Elasticsearch: {str(e)}")
         return None
 
-
-def rerank_elasticsearch(video_id, query):
-    es = Elasticsearch(
-        os.getenv('ELASTIC_ENDPOINT'),
-        api_key=os.getenv('ELASTIC_API_KEY')
+def rerank_with_cohere(documents, query):
+    # cohere_client = cohere.Client(os.getenv("COHERE_API_KEY"))
+    # cohere_endpoint = cohere_client.inference.get_model("cohere_rerank")    
+    rerank_response = es.inference.inference(
+        inference_id="cohere_rerank",
+        body={
+            "query": query,
+            "input": documents,
+            "task_settings": {
+                "return_documents": False
+            }
+        }
     )
-    index_name = os.environ.get("ELASTICSEARCH_INDEX")
+    return rerank_response
+
+def rerank_with_ms_marco_minilm(documents, query):
    
     search_body = {
         "query": {
@@ -248,7 +249,7 @@ st.title("Search in Selected Video")
 query = st.text_input("Enter your search query:")
 
 # Search button
-if st.button("Search") and query and selected_video_id:
+if st.button("Rank with Elser") and query and selected_video_id:
     with st.spinner("Searching..."):
         st.subheader(f"Results for Video: {selected_video[1]}")
         
@@ -272,21 +273,39 @@ if st.button("Search") and query and selected_video_id:
             st.write("No results found for this video.")
 
 # Re-rank button
-if st.button("Re-rank"):
+if st.button("Re-rank with Cohere"):
     if query and selected_video_id:
         with st.spinner("Re-ranking..."):
-            reranked_results = rerank_elasticsearch(query=query, video_id=selected_video_id)
+            # First, get the filtered results from Elasticsearch
+            results = search_elasticsearch(query=query, video_id=selected_video_id)
+            filtered_results = [hit['_source']['text'] for hit in results['hits']['hits'] if hit['_score'] > 3.0]
             
-            if reranked_results and reranked_results['hits']['hits']:
+            if filtered_results:
+                # Pass the filtered results to rerank_with_cohere
+                reranked_results = rerank_with_cohere(filtered_results, query)
+                
                 st.subheader("Re-ranked Results")
-                for hit in reranked_results['hits']['hits']:
+                # for result in reranked_results['results']:
+                #     st.write(f"Re-ranked Score: {result.relevance_score:.2f}")
+                #     st.write(f"Text: {result.document}")
+                #     st.write("---")
+                # Sort the original results based on the reranked order
+                sorted_results = sorted(results['hits']['hits'], 
+                                        key=lambda x: next((item['relevance_score'] for item in reranked_results['rerank'] if item['index'] == results['hits']['hits'].index(x)), 0),
+                                        reverse=True)
+
+                # Display the reranked results
+                for hit in sorted_results:
                     source = hit['_source']
                     score = hit['_score']
-                    st.write(f"Re-ranked Score: {score:.2f}")
+                    rerank_score = next((item['relevance_score'] for item in reranked_results['rerank'] if item['index'] == results['hits']['hits'].index(hit)), 0)
+                    
+                    st.write(f"Original Score: {score:.2f}")
+                    st.write(f"Reranked Score: {rerank_score:.6f}")
                     st.write(f"Start Time: {source['start_time']:.2f}")
                     st.write(f"Text: {source['text']}")
                     st.write("---")
             else:
-                st.write("No re-ranked results found for this video.")
+                st.write("No results with a score higher than 3.0 found for this video.")
     else:
         st.warning("Please enter a query and select a video before re-ranking.")
