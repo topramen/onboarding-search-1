@@ -7,4 +7,4 @@
 * Make the time stamp bigger, so that it is prominent
 * Add a condition to filter out results if score is less than a threshold -  DONE
 * Add a frame on the right side where the youtube can be played
-* Try RRF query, instead of just ELSER search
+* Try Reranking, instead of just ELSER search - DONE
