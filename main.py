@@ -299,6 +299,11 @@ if st.button("Rank with ELSER and Re-rank with Cohere"):
                     st.write(f"Reranked Score: {rerank_score:.6f}")
                     st.write(f"Start Time: {source['start_time']:.2f}")
                     st.write(f"Text: {source['text']}")
+                    
+                    # Add YouTube video frame cued up to the start time
+                    video_url = f"https://www.youtube.com/embed/{selected_video_id}?start={int(source['start_time'])}"
+                    st.components.v1.iframe(src=video_url, width=560, height=315)
+                    
                     st.write("---")
             else:
                 st.write("No results with a score higher than 3.0 found for this video.")
