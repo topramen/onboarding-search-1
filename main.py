@@ -182,8 +182,20 @@ with st.sidebar:
     youtube_url = st.text_input("Enter YouTube URL:")
     if st.button("Process Video"):
         if youtube_url:
-            chunk_youtube_video(youtube_url)
-            ingest_video_subtitles(get_video_id(youtube_url))
+            video_id = get_video_id(youtube_url)
+            # Check if video exists in elasticsearch
+            try:
+                existing_video = es_client.count(
+                    index=index_name,
+                    body={"query": {"term": {"video_id": video_id}}}
+                )
+                if existing_video["count"] > 0:
+                    st.warning("This video has already been processed and indexed.")
+                else:
+                    chunk_youtube_video(youtube_url)
+                    ingest_video_subtitles(video_id)
+            except Exception as e:
+                st.error(f"Error checking video status: {str(e)}")
         else:
             st.warning("Please enter a valid YouTube URL.")
 
@@ -215,7 +227,8 @@ if st.button("Rank with ELSER and Re-rank with Cohere"):
                 st.session_state.elser_results = search_elasticsearch(query=query, video_id=selected_video_id)
             
             results = st.session_state.elser_results
-            filtered_results = [hit['_source']['text'] for hit in results['hits']['hits'] if hit['_score'] > 3.0]
+            # Filter results with a score higher than a threshold, which is 0.0 for testing
+            filtered_results = [hit['_source']['text'] for hit in results['hits']['hits'] if hit['_score'] > 0.0]
             print(f"Debug: Number of filtered results: {len(filtered_results)}")
             if filtered_results:
                 reranked_results = rerank_with_cohere(filtered_results, query)
