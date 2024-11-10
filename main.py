@@ -11,6 +11,7 @@ import cohere
 
 load_dotenv()
 
+
 es = Elasticsearch(
     os.getenv('ELASTIC_ENDPOINT'),
     api_key=os.getenv('ELASTIC_API_KEY')
@@ -136,65 +137,6 @@ def rerank_with_cohere(documents, query):
     )
     return rerank_response
 
-# def rerank_with_ms_marco_minilm(documents, query):
-#     search_body = {
-#         "query": {
-#             "bool": {
-#                 "must": {
-#                     "nested": {
-#                         "path": "text_semantic.inference.chunks",
-#                         "query": {
-#                             "sparse_vector": {
-#                                 "inference_id": "my-elser-endpoint",
-#                                 "field": "text_semantic.inference.chunks.embeddings",
-#                                 "query": query
-#                             }
-#                         },
-#                         "inner_hits": {
-#                             "size": 2,
-#                             "name": "youtube_subtitles.text_semantic",
-#                             "_source": [
-#                                 "text_semantic.inference.chunks.text"
-#                             ]
-#                         }
-#                     }
-#                 },
-#                 "filter": {
-#                     "term": {
-#                         "video_id": video_id
-#                     }
-#                 }
-#             }
-#         },
-#         "_source": ["start_time", "text"],
-#         "track_scores": True,
-#         "rescore": {
-#             "window_size": 50,
-#             "query": {
-#                 "rescore_query": {
-#                     "inference": {
-#                         "model_id": "cross-encoder__ms-marco-minilm-l-6-v2",
-#                         "inference_config": {
-#                             "cross_encoder": {
-#                                 "query": query
-#                             }
-#                         },
-#                         "input_field": "text",
-#                         "target_field": "reranked_score"
-#                     }
-#                 },
-#                 "score_mode": "total",
-#                 "query_weight": 0.3,
-#                 "rescore_query_weight": 0.7
-#             }
-#         }
-#     }    
-#     try:
-#         response = es.search(index=index_name, body=search_body)
-#         return response
-#     except Exception as e:
-#         print(f"Error searching and reranking in Elasticsearch: {str(e)}")
-#         return None
 
 
 # Function to display ELSER results
@@ -227,10 +169,10 @@ try:
 except Exception as e:
     es_client=None
 
+
+# Main app logic
 st.set_page_config(layout="wide")
 set_page_container_style()
-
-
 
 # LEFT SIDEBAR
 with st.sidebar:
@@ -263,13 +205,6 @@ st.title("Search in Selected Video")
 
 # Query input field
 query = st.text_input("Enter your search query (Cmd-R/Ctrl-R to refresh):")
-
-# Search button
-# if st.button("Rank with Elser") and query and selected_video_id:
-#     with st.spinner("Searching..."):
-#         st.session_state.elser_results = search_elasticsearch(query=query, video_id=selected_video_id)
-#         display_elser_results()
-
 
 
 # Re-rank button

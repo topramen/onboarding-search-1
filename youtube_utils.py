@@ -4,29 +4,34 @@ import json
 from youtube_transcript_api import YouTubeTranscriptApi
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from elasticapm import capture_span
 
 def get_youtube_title(video_id):
-    try:
-        # Replace 'YOUR_API_KEY' with your actual YouTube Data API key
-        youtube = build('youtube', 'v3', developerKey=os.getenv('YOUTUBE_API_KEY'))
+    @capture_span()
+    def get_youtube_title(video_id):
+        try:
+            # Replace 'YOUR_API_KEY' with your actual YouTube Data API key
+            youtube = build('youtube', 'v3', developerKey=os.getenv('YOUTUBE_API_KEY'))
 
-        # Call the videos().list method to retrieve video details
-        request = youtube.videos().list(
-            part="snippet",
-            id=video_id
-        )
-        response = request.execute()
+            # Call the videos().list method to retrieve video details
+            request = youtube.videos().list(
+                part="snippet",
+                id=video_id
+            )
+            response = request.execute()
 
-        # Extract the title from the response
-        if 'items' in response and len(response['items']) > 0:
-            return response['items'][0]['snippet']['title']
-        else:
-            return "Title not found"
+            # Extract the title from the response
+            if 'items' in response and len(response['items']) > 0:
+                return response['items'][0]['snippet']['title']
+            else:
+                return "Title not found"
 
-    except HttpError as e:
-        return f"An HTTP error occurred: {e.resp.status} {e.content}"
-    except Exception as e:
-        return f"An error occurred: {str(e)}"
+        except HttpError as e:
+            return f"An HTTP error occurred: {e.resp.status} {e.content}"
+        except Exception as e:
+            return f"An error occurred: {str(e)}"
+
+    return get_youtube_title(video_id)
 
 # Example usage:
 # title = get_youtube_title("dQw4w9WgXcQ")
@@ -36,16 +41,20 @@ def get_youtube_title(video_id):
 
 
 def get_video_id(url):
-    # Regular expression pattern to match various YouTube URL formats
-    pattern = r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?(?:embed\/)?(?:v\/)?(?:shorts\/)?(?:live\/)?(?:(?!videos)(?!channel)(?!user)(?!playlist).)*'
-    
-    # Try to match the pattern in the URL
-    match = re.search(pattern + '([\w-]{11})', url)
-    
-    if match:
-        return match.group(1)
-    else:
-        return None
+    @capture_span()
+    def get_video_id(url):
+        # Regular expression pattern to match various YouTube URL formats
+        pattern = r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?(?:embed\/)?(?:v\/)?(?:shorts\/)?(?:live\/)?(?:(?!videos)(?!channel)(?!user)(?!playlist).)*'
+        
+        # Try to match the pattern in the URL
+        match = re.search(pattern + '([\w-]{11})', url)
+        
+        if match:
+            return match.group(1)
+        else:
+            return None
+
+    return get_video_id(url)
 
 def download_subtitles(video_id):
     try:
@@ -109,25 +118,28 @@ def save_chunks_to_files(chunks):
 
 
 def chunk_youtube_video(url):
-    video_id = get_video_id(url)
-    print(f"Video ID: {video_id}")
-    
-    if video_id:
-        subtitles = download_subtitles(video_id)
-        print(f"Subtitles: {subtitles[:2]}...")  # Print first two subtitle entries
+    @capture_span()
+    def chunk_youtube_video(url):
+        video_id = get_video_id(url)
+        print(f"Video ID: {video_id}")
         
-        if subtitles:
-            chunks = chunk_subtitles(subtitles)
-            print(f"Number of chunks: {len(chunks)}")
-            print(f"First chunk: {chunks[0][:2]}...")  # Print first two entries of the first chunk
+        if video_id:
+            subtitles = download_subtitles(video_id)
+            print(f"Subtitles: {subtitles[:2]}...")  # Print first two subtitle entries
             
-            save_chunks_to_files(chunks)
-            print("Chunks saved to files.")
+            if subtitles:
+                chunks = chunk_subtitles(subtitles)
+                print(f"Number of chunks: {len(chunks)}")
+                print(f"First chunk: {chunks[0][:2]}...")  # Print first two entries of the first chunk
+                
+                save_chunks_to_files(chunks)
+                print("Chunks saved to files.")
+            else:
+                print("Failed to download subtitles.")
         else:
-            print("Failed to download subtitles.")
-    else:
-        print("Failed to extract video ID from URL.")
+            print("Failed to extract video ID from URL.")
 
+    return chunk_youtube_video(url)
 
 if __name__ == "__main__":
     url = "https://www.youtube.com/watch?v=XlvfHOrF26M"
