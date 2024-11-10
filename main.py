@@ -214,9 +214,18 @@ with st.sidebar:
 
 # RIGHT PANEL
 st.title("Search in Selected Video")
+if selected_video_id:
+    st.components.v1.iframe(
+        src=f"https://www.youtube.com/embed/{selected_video_id}",
+        width=560,
+        height=315
+    )
+    st.write(f"**{selected_video[1]}**")
+else:
+    st.info("Please select a video from the sidebar")
 
 # Query input field
-query = st.text_input("Enter your search query (Cmd-R/Ctrl-R to refresh):")
+query = st.text_input("Enter the audio text you want to search for (Cmd-R/Ctrl-R to refresh):")
 
 
 # Re-rank button
@@ -227,8 +236,11 @@ if st.button("Rank with ELSER and Re-rank with Cohere"):
                 st.session_state.elser_results = search_elasticsearch(query=query, video_id=selected_video_id)
             
             results = st.session_state.elser_results
-            # Filter results with a score higher than a threshold, which is 0.0 for testing
-            filtered_results = [hit['_source']['text'] for hit in results['hits']['hits'] if hit['_score'] > 0.0]
+            # Define score threshold
+            score_threshold = 0.0  # For testing purposes
+            
+            # Filter results with a score higher than threshold
+            filtered_results = [hit['_source']['text'] for hit in results['hits']['hits'] if hit['_score'] > score_threshold]
             print(f"Debug: Number of filtered results: {len(filtered_results)}")
             if filtered_results:
                 reranked_results = rerank_with_cohere(filtered_results, query)
@@ -254,7 +266,7 @@ if st.button("Rank with ELSER and Re-rank with Cohere"):
                     
                     st.write("---")
             else:
-                st.write("No results with a score higher than 3.0 found for this video.")
+                st.write(f"No results with a score higher than {score_threshold} found for this video.")
     else:
         st.warning("Please enter a query and select a video before re-ranking.")
 
