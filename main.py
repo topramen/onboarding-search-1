@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from youtube_utils import get_youtube_title, chunk_youtube_video, get_video_id
 import json
 import cohere
+# Define score threshold
+score_threshold = 2.0  # For testing purposes
 
 load_dotenv()
 
@@ -140,13 +142,13 @@ def rerank_with_cohere(documents, query):
 
 
 # Function to display ELSER results
-def display_elser_results():
+def display_elser_results(score_threshold=3.0):
     if 'elser_results' in st.session_state and st.session_state.elser_results:
         results = st.session_state.elser_results
         # st.subheader(f"Results for Video: {selected_video[1]}")
-        filtered_results = [hit for hit in results['hits']['hits'] if hit['_score'] > 3.0]
+        filtered_results = [hit for hit in results['hits']['hits'] if hit['_score'] > score_threshold]
         if filtered_results:
-            st.markdown(f"**Total Results (Score > 3.0):** {len(filtered_results)}")
+            st.markdown(f"**Total Results (Score > {score_threshold}):** {len(filtered_results)}")
             for hit in filtered_results:
                 source = hit['_source']
                 score = hit['_score']
@@ -155,7 +157,7 @@ def display_elser_results():
                 st.write(f"Text: {source['text']}")
                 st.write("---")
         else:
-            st.write("No results with a score higher than 3.0 found for this video.")
+            st.write(f"No results with a score higher than {score_threshold} found for this video.")
     else:
         st.write("No results found for this video.")
 
@@ -182,8 +184,20 @@ with st.sidebar:
     youtube_url = st.text_input("Enter YouTube URL:")
     if st.button("Process Video"):
         if youtube_url:
-            chunk_youtube_video(youtube_url)
-            ingest_video_subtitles(get_video_id(youtube_url))
+            video_id = get_video_id(youtube_url)
+            # Check if video exists in elasticsearch
+            try:
+                existing_video = es_client.count(
+                    index=index_name,
+                    body={"query": {"term": {"video_id": video_id}}}
+                )
+                if existing_video["count"] > 0:
+                    st.warning("This video has already been processed and indexed.")
+                else:
+                    chunk_youtube_video(youtube_url)
+                    ingest_video_subtitles(video_id)
+            except Exception as e:
+                st.error(f"Error checking video status: {str(e)}")
         else:
             st.warning("Please enter a valid YouTube URL.")
 
@@ -202,9 +216,18 @@ with st.sidebar:
 
 # RIGHT PANEL
 st.title("Search in Selected Video")
+if selected_video_id:
+    st.components.v1.iframe(
+        src=f"https://www.youtube.com/embed/{selected_video_id}",
+        width=560,
+        height=315
+    )
+    st.write(f"**{selected_video[1]}**")
+else:
+    st.info("Please select a video from the sidebar")
 
 # Query input field
-query = st.text_input("Enter your search query (Cmd-R/Ctrl-R to refresh):")
+query = st.text_input("Enter the audio text you want to search for (Cmd-R/Ctrl-R to refresh):")
 
 
 # Re-rank button
@@ -215,7 +238,9 @@ if st.button("Rank with ELSER and Re-rank with Cohere"):
                 st.session_state.elser_results = search_elasticsearch(query=query, video_id=selected_video_id)
             
             results = st.session_state.elser_results
-            filtered_results = [hit['_source']['text'] for hit in results['hits']['hits'] if hit['_score'] > 3.0]
+            
+            # Filter results with a score higher than threshold
+            filtered_results = [hit['_source']['text'] for hit in results['hits']['hits'] if hit['_score'] > score_threshold]
             print(f"Debug: Number of filtered results: {len(filtered_results)}")
             if filtered_results:
                 reranked_results = rerank_with_cohere(filtered_results, query)
@@ -241,11 +266,11 @@ if st.button("Rank with ELSER and Re-rank with Cohere"):
                     
                     st.write("---")
             else:
-                st.write("No results with a score higher than 3.0 found for this video.")
+                st.write(f"No results with a score higher than {score_threshold} found for this video.")
     else:
         st.warning("Please enter a query and select a video before re-ranking.")
 
 # Display ELSER results if they exist (to keep them visible after re-ranking)
 if 'elser_results' in st.session_state:
     st.subheader(f"Original ELSER Results for video: {selected_video[1]}")
-    display_elser_results()
+    display_elser_results(score_threshold)
