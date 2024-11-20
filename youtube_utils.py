@@ -120,24 +120,40 @@ def save_chunks_to_files(chunks):
 def chunk_youtube_video(url):
     @capture_span()
     def chunk_youtube_video(url):
-        video_id = get_video_id(url)
-        print(f"Video ID: {video_id}")
-        
-        if video_id:
-            subtitles = download_subtitles(video_id)
-            print(f"Subtitles: {subtitles[:2]}...")  # Print first two subtitle entries
+        try:
+            video_id = get_video_id(url)
+            if not video_id:
+                raise ValueError("Failed to extract video ID from URL")
+            print(f"Video ID: {video_id}")
             
-            if subtitles:
-                chunks = chunk_subtitles(subtitles)
-                print(f"Number of chunks: {len(chunks)}")
-                print(f"First chunk: {chunks[0][:2]}...")  # Print first two entries of the first chunk
+            try:
+                subtitles = download_subtitles(video_id)
+                if not subtitles:
+                    raise ValueError(f"No subtitles available for video {video_id}")
+                print(f"Subtitles: {subtitles[:2]}...")  # Print first two subtitle entries
                 
-                save_chunks_to_files(chunks)
-                print("Chunks saved to files.")
-            else:
-                print("Failed to download subtitles.")
-        else:
-            print("Failed to extract video ID from URL.")
+                try:
+                    chunks = chunk_subtitles(subtitles)
+                    if not chunks:
+                        raise ValueError("Failed to chunk subtitles")
+                    print(f"Number of chunks: {len(chunks)}")
+                    print(f"First chunk: {chunks[0][:2]}...")  # Print first two entries of the first chunk
+                    
+                    try:
+                        save_chunks_to_files(chunks)
+                        print("Chunks saved to files.")
+                    except Exception as e:
+                        raise Exception(f"Error saving chunks to files: {str(e)}")
+                        
+                except Exception as e:
+                    raise Exception(f"Error chunking subtitles: {str(e)}")
+                    
+            except Exception as e:
+                raise Exception(f"Error downloading subtitles: {str(e)}")
+                
+        except Exception as e:
+            print(f"Error processing video: {str(e)}")
+            return None
 
     return chunk_youtube_video(url)
 
