@@ -56,6 +56,10 @@ Here's the mapping for the youtube_subtitles index:
         }
       }
     }
+```
+## Important Notes
+- In order to use Cohere with elastic, please look at https://www.elastic.co/guide/en/elasticsearch/reference/current/cohere-es.html.
+- The Jupyter notebook included in the repo, was me trying to figure out how to use the Cohere API with elastic. It may not work for you. 
 
 ## Running the App
 
